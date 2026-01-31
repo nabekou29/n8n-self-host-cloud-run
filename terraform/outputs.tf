@@ -18,23 +18,9 @@ output "service_url" {
   value       = google_cloud_run_v2_service.n8n.uri
 }
 
-output "custom_domain_url" {
-  description = "Custom domain URL (if configured)"
-  value       = var.custom_domain != "" ? "https://${var.custom_domain}" : "Not configured"
-}
-
 output "n8n_url" {
   description = "N8N service URL"
-  value       = var.custom_domain != "" ? "https://${var.custom_domain}" : google_cloud_run_v2_service.n8n.uri
-}
-
-output "dns_records" {
-  description = "DNS records to configure (if using custom domain)"
-  value = var.custom_domain != "" ? {
-    type   = "CNAME"
-    name   = var.custom_domain
-    target = "ghs.googlehosted.com"
-  } : null
+  value       = google_cloud_run_v2_service.n8n.uri
 }
 
 output "encryption_key" {

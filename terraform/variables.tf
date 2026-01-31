@@ -24,9 +24,3 @@ variable "n8n_encryption_key" {
   default     = ""
 }
 
-variable "custom_domain" {
-  description = "Custom domain for n8n (e.g., n8n.example.com)"
-  type        = string
-  default     = "n8n.nabekou29.com"
-}
-

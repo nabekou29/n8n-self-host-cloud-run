@@ -41,6 +41,17 @@ resource "google_storage_bucket" "n8n_data" {
     }
   }
 
+  # 非現行バージョンを7日後に削除（GCS FUSEによるバージョン蓄積対策）
+  lifecycle_rule {
+    condition {
+      days_since_noncurrent_time = 7
+      with_state                 = "ARCHIVED"
+    }
+    action {
+      type = "Delete"
+    }
+  }
+
   depends_on = [google_project_service.required_apis]
 }
 
@@ -116,7 +127,7 @@ resource "google_cloud_run_v2_service" "n8n" {
     max_instance_request_concurrency = 10
 
     containers {
-      image = "n8nio/n8n:latest"
+      image = "n8nio/n8n:2.4.8"
 
       resources {
         limits = {
@@ -150,20 +161,6 @@ resource "google_cloud_run_v2_service" "n8n" {
       }
 
 
-      env {
-        name  = "N8N_HOST"
-        value = var.custom_domain != "" ? var.custom_domain : "${var.service_name}-${var.project_id}.${var.region}.run.app"
-      }
-
-      env {
-        name  = "N8N_PROTOCOL"
-        value = "https"
-      }
-
-      env {
-        name  = "WEBHOOK_URL"
-        value = var.custom_domain != "" ? "https://${var.custom_domain}/" : "https://${var.service_name}-${var.project_id}.${var.region}.run.app/"
-      }
 
       env {
         name  = "N8N_LOG_LEVEL"
@@ -270,23 +267,6 @@ resource "google_cloud_run_service_iam_member" "n8n_public" {
   location = var.region
   role     = "roles/run.invoker"
   member   = "allUsers"
-}
-
-# Domain mapping for custom domain
-resource "google_cloud_run_domain_mapping" "n8n_domain" {
-  count    = var.custom_domain != "" ? 1 : 0
-  name     = var.custom_domain
-  location = var.region
-
-  metadata {
-    namespace = var.project_id
-  }
-
-  spec {
-    route_name = google_cloud_run_v2_service.n8n.name
-  }
-
-  depends_on = [google_cloud_run_v2_service.n8n]
 }
 
 # Cloud Scheduler to warm up instances before schedule triggers

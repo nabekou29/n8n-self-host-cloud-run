@@ -213,6 +213,11 @@ resource "google_cloud_run_v2_service" "n8n" {
       }
 
       env {
+        name  = "WEBHOOK_URL"
+        value = var.n8n_webhook_url
+      }
+
+      env {
         name  = "QUEUE_HEALTH_CHECK_ACTIVE"
         value = "true"
       }

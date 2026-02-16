@@ -24,3 +24,8 @@ variable "n8n_encryption_key" {
   default     = ""
 }
 
+variable "n8n_webhook_url" {
+  description = "n8nの外部公開URL（Webhook/フォームURLに使用される）"
+  type        = string
+}
+

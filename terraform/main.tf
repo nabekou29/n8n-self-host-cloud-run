@@ -260,6 +260,13 @@ resource "google_cloud_run_v2_service" "n8n" {
     }
   }
 
+  # min_instance_count はCloud Schedulerで動的に変更するためTerraformの管理外とする
+  lifecycle {
+    ignore_changes = [
+      template[0].scaling[0].min_instance_count,
+    ]
+  }
+
   depends_on = [
     google_project_service.required_apis,
     google_service_account.n8n_runner,
@@ -274,29 +281,101 @@ resource "google_cloud_run_service_iam_member" "n8n_public" {
   member   = "allUsers"
 }
 
-# Cloud Scheduler to warm up instances before schedule triggers
-resource "google_cloud_scheduler_job" "n8n_warmup" {
-  name             = "n8n-instance-warmup"
-  description      = "Warm up n8n instance before scheduled workflows"
-  schedule         = "55 8-20 * * *" # Every hour at 55 minutes
+# Service account for Cloud Scheduler to manage Cloud Run scaling
+resource "google_service_account" "scheduler" {
+  account_id   = "n8n-scheduler"
+  display_name = "n8n Cloud Scheduler Service Account"
+  description  = "Service account for Cloud Scheduler to manage n8n Cloud Run service scaling"
+
+  depends_on = [google_project_service.required_apis]
+}
+
+# Scheduler SAにCloud Runサービスの更新権限を付与
+resource "google_project_iam_member" "scheduler_run_developer" {
+  project = var.project_id
+  role    = "roles/run.developer"
+  member  = "serviceAccount:${google_service_account.scheduler.email}"
+}
+
+# Scheduler SAがCloud Runサービスのリビジョン作成時にn8n_runner SAを使用できるようにする
+resource "google_service_account_iam_member" "scheduler_act_as_runner" {
+  service_account_id = google_service_account.n8n_runner.name
+  role               = "roles/iam.serviceAccountUser"
+  member             = "serviceAccount:${google_service_account.scheduler.email}"
+}
+
+# 08:00 JST にインスタンスをスケールアップ（min_instance_count = 1）
+resource "google_cloud_scheduler_job" "n8n_scale_up" {
+  name             = "n8n-scale-up"
+  description      = "Scale up n8n instance at 08:00 JST"
+  schedule         = "0 8 * * *"
   time_zone        = "Asia/Tokyo"
-  attempt_deadline = "30s"
+  attempt_deadline = "60s"
 
   retry_config {
-    retry_count = 0
+    retry_count = 1
   }
 
   http_target {
-    http_method = "GET"
-    uri         = "${google_cloud_run_v2_service.n8n.uri}/healthz/"
-
+    http_method = "PATCH"
+    uri         = "https://run.googleapis.com/v2/projects/${var.project_id}/locations/${var.region}/services/${var.service_name}?updateMask=template.scaling.minInstanceCount"
+    body        = base64encode(jsonencode({
+      template = {
+        scaling = {
+          minInstanceCount = 1
+        }
+      }
+    }))
     headers = {
-      "User-Agent" = "Google-Cloud-Scheduler"
+      "Content-Type" = "application/json"
+    }
+
+    oauth_token {
+      service_account_email = google_service_account.scheduler.email
+      scope                 = "https://www.googleapis.com/auth/cloud-platform"
     }
   }
 
   depends_on = [
     google_cloud_run_v2_service.n8n,
-    google_project_service.required_apis
+    google_project_service.required_apis,
+  ]
+}
+
+# 00:00 JST にインスタンスをスケールダウン（min_instance_count = 0）
+resource "google_cloud_scheduler_job" "n8n_scale_down" {
+  name             = "n8n-scale-down"
+  description      = "Scale down n8n instance at 00:00 JST"
+  schedule         = "0 0 * * *"
+  time_zone        = "Asia/Tokyo"
+  attempt_deadline = "60s"
+
+  retry_config {
+    retry_count = 1
+  }
+
+  http_target {
+    http_method = "PATCH"
+    uri         = "https://run.googleapis.com/v2/projects/${var.project_id}/locations/${var.region}/services/${var.service_name}?updateMask=template.scaling.minInstanceCount"
+    body        = base64encode(jsonencode({
+      template = {
+        scaling = {
+          minInstanceCount = 0
+        }
+      }
+    }))
+    headers = {
+      "Content-Type" = "application/json"
+    }
+
+    oauth_token {
+      service_account_email = google_service_account.scheduler.email
+      scope                 = "https://www.googleapis.com/auth/cloud-platform"
+    }
+  }
+
+  depends_on = [
+    google_cloud_run_v2_service.n8n,
+    google_project_service.required_apis,
   ]
 }

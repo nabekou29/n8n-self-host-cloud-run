@@ -26,26 +26,11 @@ resource "google_storage_bucket" "n8n_data" {
 
   uniform_bucket_level_access = true
 
-  versioning {
-    enabled = true
-  }
-
   lifecycle_rule {
     condition {
       age            = 30
       matches_prefix = ["backups/"]
       with_state     = "ANY"
-    }
-    action {
-      type = "Delete"
-    }
-  }
-
-  # 非現行バージョンを7日後に削除（GCS FUSEによるバージョン蓄積対策）
-  lifecycle_rule {
-    condition {
-      days_since_noncurrent_time = 7
-      with_state                 = "ARCHIVED"
     }
     action {
       type = "Delete"

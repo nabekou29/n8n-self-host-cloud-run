@@ -29,3 +29,9 @@ variable "n8n_webhook_url" {
   type        = string
 }
 
+variable "n8n_tick_webhook_path" {
+  description = "n8n Dispatcherワークフローのwebhookパス（例: tick）"
+  type        = string
+  default     = "tick"
+}
+

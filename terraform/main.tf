@@ -207,6 +207,11 @@ resource "google_cloud_run_v2_service" "n8n" {
       }
 
       env {
+        name  = "N8N_DEFAULT_BINARY_DATA_MODE"
+        value = "default"
+      }
+
+      env {
         name  = "QUEUE_HEALTH_CHECK_ACTIVE"
         value = "true"
       }

@@ -26,6 +26,10 @@ resource "google_storage_bucket" "n8n_data" {
 
   uniform_bucket_level_access = true
 
+  versioning {
+    enabled = false
+  }
+
   lifecycle_rule {
     condition {
       age            = 30
